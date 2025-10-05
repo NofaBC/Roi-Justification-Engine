@@ -1,0 +1,547 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ROI Justification Engine™ — NOFA Business Consulting, LLC</title>
+  <meta name="description" content="SaaS‑ready manual vs AI ROI calculator with Year‑1 setup costs, white‑label branding, provider‑only insights, and PDF export." />
+
+  <!-- Libraries -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <!-- Minimal CSS helpers (no @apply so CDN‑friendly) -->
+  <style>
+    .card{ background:#fff; border-radius:1rem; box-shadow:0 10px 20px rgba(0,0,0,.06),0 6px 6px rgba(0,0,0,.04); padding:1.5rem; }
+    .label{ font-size:0.875rem; color:#475569; display:block; }
+    .input{ width:100%; border-radius:0.75rem; border:1px solid #cbd5e1; padding:0.5rem 0.75rem; outline:none; }
+    .input:focus{ box-shadow:0 0 0 2px rgba(99,102,241,.5); border-color:#6366f1; }
+    .num{ text-align:right; }
+    .badge{ font-size:0.75rem; padding:0.25rem 0.5rem; border-radius:9999px; background:#f1f5f9; }
+    .provider-only{ border:2px dashed #f59e0b; }
+    /* Fancy full‑bleed background */
+    .bg-fancy{
+      background:
+        radial-gradient(1200px 800px at -10% -10%, rgba(99,102,241,0.18), transparent 60%),
+        radial-gradient(1000px 700px at 110% 0%, rgba(56,189,248,0.16), transparent 55%),
+        radial-gradient(900px 600px at 50% 120%, rgba(34,197,94,0.12), transparent 60%),
+        linear-gradient(180deg, #eef2ff 0%, #e0f2fe 40%, #eef2ff 100%);
+    }
+    .bg-fancy::before{
+      content:""; position:fixed; inset:0; pointer-events:none; z-index:-1;
+      background-image: radial-gradient(circle at 2px 2px, rgba(2,6,23,.07) 1px, transparent 1.5px);
+      background-size:24px 24px; opacity:.5;
+    }
+  </style>
+</head>
+<body class="min-h-screen text-slate-900 bg-fancy">
+  <div class="w-full max-w-screen-2xl mx-auto px-6 md:px-10 py-6 md:py-10">
+    <!-- Header -->
+    <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+      <div class="flex items-start gap-3">
+        <div>
+          <h1 id="brandName" class="text-2xl md:text-3xl font-bold tracking-tight">NOFA Business Consulting, LLC</h1>
+          <p class="text-slate-600 text-sm">A Marketing and AI Technology Company — Automate your business with our Autonomous AI Agents</p>
+          <p class="text-slate-600 text-xs"><a class="underline" href="https://nofabusinessconsulting.com" target="_blank" rel="noopener">nofabusinessconsulting.com</a></p>
+          <p class="text-slate-600 text-xs">Invented on <strong>October 4, 2025</strong></p>
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <button id="toggleProvider" class="rounded-xl bg-amber-500 text-white font-semibold px-4 py-2">Provider Mode: OFF</button>
+        <button id="exportPDF" class="rounded-xl bg-slate-900 text-white font-semibold px-4 py-2">Export Client PDF</button>
+      </div>
+    </header>
+
+    <main class="grid lg:grid-cols-5 gap-6 items-start">
+      <!-- Inputs -->
+      <section id="inputsCard" class="card lg:col-span-2 grid gap-5">
+        <div class="flex items-center justify-between">
+          <h2 class="text-lg font-semibold">Project Setup</h2>
+          <span class="badge">MVP</span>
+        </div>
+
+        <!-- Client details -->
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="label">Client company</label>
+            <input id="clientCompany" class="input" placeholder="e.g., Acme Builders" />
+          </div>
+          <div>
+            <label class="label">Client contact</label>
+            <input id="clientContact" class="input" placeholder="e.g., Dana Rivera" />
+          </div>
+        </div>
+
+        <div>
+          <label class="label">Task / Workflow name</label>
+          <input id="taskName" class="input" placeholder="e.g., Bid preparation" value="Bid preparation" />
+        </div>
+
+        <!-- AI Task Specification (for model analysis) -->
+        <div id="aiSpec" class="grid gap-2">
+          <label class="label">AI Task Specification</label>
+          <textarea id="projectSpec" rows="8" class="input" placeholder="Describe the project for the AI. Include:
+• Objective / business outcome
+• Inputs & sources (files, systems, APIs)
+• Key steps / workflow
+• Acceptance criteria / definition of done
+• Constraints (SLA, budget, compliance)
+• Edge cases
+• Output format(s) and delivery"></textarea>
+          <div class="flex items-center justify-between text-xs text-slate-500">
+            <span><span id="specCount">0</span> chars</span>
+            <div class="flex gap-2">
+              <button id="specTemplate" type="button" class="rounded-lg bg-slate-100 px-2.5 py-1 font-medium hover:bg-slate-200">Insert template</button>
+              <button id="specCopy" type="button" class="rounded-lg bg-indigo-600 text-white px-2.5 py-1 font-medium hover:bg-indigo-700">Copy for AI</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Presets that affect wages -->
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="label">Industry</label>
+            <select id="industry" class="input">
+              <option value="construction" selected>Construction</option>
+              <option value="healthcare">Healthcare</option>
+              <option value="legal">Legal</option>
+              <option value="retail">Retail</option>
+              <option value="software">Software</option>
+            </select>
+          </div>
+          <div>
+            <label class="label">Region</label>
+            <select id="region" class="input">
+              <option value="us_national" selected>US — National Avg</option>
+              <option value="us_nyc">US — NYC Metro</option>
+              <option value="us_rural">US — Rural</option>
+              <option value="eu">Europe — Avg</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div>
+            <label class="label">Market condition</label>
+            <select id="market" class="input">
+              <option value="normal" selected>Normal</option>
+              <option value="layoffs">Layoffs (wages ↓)</option>
+              <option value="shortage">Labor shortage (wages ↑)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="label">Tasks per month</label>
+            <input id="freq" type="number" class="input num" value="20" min="0" step="1" />
+          </div>
+          <div>
+            <label class="label">Months in analysis</label>
+            <input id="months" type="number" class="input num" value="12" min="1" step="1" />
+          </div>
+        </div>
+
+        <!-- Manual -->
+        <h3 class="text-base font-semibold mt-1">Manual Process</h3>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="label">Hours per task</label>
+            <input id="manualHours" type="number" class="input num" value="13" min="0" step="0.1" />
+          </div>
+          <div>
+            <label class="label">Hourly rate ($)</label>
+            <input id="manualRate" type="number" class="input num" value="60" min="0" step="1" />
+          </div>
+        </div>
+        <div>
+          <label class="label">Extra cost per task (rework, delays) $</label>
+          <input id="manualExtras" type="number" class="input num" value="0" min="0" step="1" />
+        </div>
+
+        <!-- AI -->
+        <h3 class="text-base font-semibold">AI‑Assisted Process</h3>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="label">AI processing (hrs)</label>
+            <input id="aiProcHours" type="number" class="input num" value="0.5" min="0" step="0.1" />
+          </div>
+          <div>
+            <label class="label">Human review (hrs)</label>
+            <input id="aiReviewHours" type="number" class="input num" value="1.5" min="0" step="0.1" />
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="label">Review hourly rate ($)</label>
+            <input id="aiRate" type="number" class="input num" value="60" min="0" step="1" />
+          </div>
+          <div>
+            <label class="label">Your SaaS / Markup ($/mo)</label>
+            <input id="aiMonthlyFee" type="number" class="input num" value="1000" min="0" step="1" />
+          </div>
+        </div>
+
+        <!-- Setup & Ops -->
+        <h3 class="text-base font-semibold">Setup & Ops Assumptions</h3>
+        <div class="grid md:grid-cols-2 gap-3">
+          <div>
+            <label class="label">Setup cost (one‑time $)</label>
+            <input id="setupCost" type="number" class="input num" value="5000" min="0" step="1" />
+          </div>
+          <div>
+            <label class="label">Amortize setup over (months)</label>
+            <input id="amortMonths" type="number" class="input num" value="12" min="1" step="1" />
+          </div>
+          <div>
+            <label class="label">Integration hours × rate ($/hr)</label>
+            <div class="grid grid-cols-2 gap-2 mt-1">
+              <input id="integrationHours" type="number" class="input num" value="20" min="0" step="1" />
+              <input id="integrationRate" type="number" class="input num" value="85" min="0" step="1" />
+            </div>
+          </div>
+          <div>
+            <label class="label">Prompt‑eng hours × rate ($/hr)</label>
+            <div class="grid grid-cols-2 gap-2 mt-1">
+              <input id="peHours" type="number" class="input num" value="12" min="0" step="1" />
+              <input id="peRate" type="number" class="input num" value="120" min="0" step="1" />
+            </div>
+          </div>
+          <div>
+            <label class="label">Data migration (one‑time $)</label>
+            <input id="dataMigration" type="number" class="input num" value="0" min="0" step="1" />
+          </div>
+          <div>
+            <label class="label">Retraining / tuning (per year $)</label>
+            <input id="retraining" type="number" class="input num" value="0" min="0" step="1" />
+          </div>
+          <div>
+            <label class="label">Model cost per task ($ tokens/API)</label>
+            <input id="modelCostPerTask" type="number" class="input num" value="2" min="0" step="0.1" />
+          </div>
+          <div>
+            <label class="label">Evaluation hrs/mo × rate ($/hr)</label>
+            <div class="grid grid-cols-2 gap-2 mt-1">
+              <input id="evalHours" type="number" class="input num" value="4" min="0" step="1" />
+              <input id="evalRate" type="number" class="input num" value="75" min="0" step="1" />
+            </div>
+          </div>
+          <div>
+            <label class="label">QA sample % × minutes × rate</label>
+            <div class="grid grid-cols-3 gap-2 mt-1">
+              <input id="qaSamplePct" type="number" class="input num" value="10" min="0" step="1" />
+              <input id="qaMinutes" type="number" class="input num" value="6" min="0" step="1" />
+              <input id="qaRate" type="number" class="input num" value="45" min="0" step="1" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Risk & Notes -->
+        <h3 class="text-base font-semibold">Risk & Notes</h3>
+        <div class="grid md:grid-cols-3 gap-3">
+          <div>
+            <label class="label">Manual error rate %</label>
+            <input id="manualErrPct" type="number" class="input num" value="3" min="0" step="0.1" />
+          </div>
+          <div>
+            <label class="label">AI error rate %</label>
+            <input id="aiErrPct" type="number" class="input num" value="1" min="0" step="0.1" />
+          </div>
+          <div>
+            <label class="label">Cost per error ($)</label>
+            <input id="errCost" type="number" class="input num" value="50" min="0" step="1" />
+          </div>
+        </div>
+        <div class="grid md:grid-cols-3 gap-3">
+          <div>
+            <label class="label">Risk buffer on totals %</label>
+            <input id="riskBufferPct" type="number" class="input num" value="5" min="0" step="1" />
+          </div>
+          <div>
+            <label class="label">Confidence level (0–100%)</label>
+            <input id="confidencePct" type="number" class="input num" value="80" min="0" step="1" />
+          </div>
+          <div>
+            <label class="label">Notes (appendix)</label>
+            <input id="notes" class="input" placeholder="Assumptions, data sources (BLS, logs), constraints..." />
+          </div>
+        </div>
+
+        <!-- Provider toolbox (private) -->
+        <div id="providerCatalog" class="hidden provider-only rounded-xl p-4 bg-amber-50">
+          <div class="flex items-center justify-between">
+            <h3 class="font-semibold">Provider Toolbox — Private</h3>
+            <span class="badge bg-amber-200">Provider‑only</span>
+          </div>
+          <p class="text-sm text-amber-800 mt-1">List supported workflows (keywords). The engine warns if the client’s task isn’t covered.</p>
+          <textarea id="capabilities" rows="3" class="input mt-2" placeholder="e.g., bid, estimate, proposal, scheduling, support, intake">bid, estimate, proposal</textarea>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 mt-2">
+          <button id="calcBtn" class="rounded-xl bg-indigo-600 text-white font-semibold py-2.5 hover:bg-indigo-700 transition">Calculate</button>
+          <button id="resetBtn" class="rounded-xl bg-slate-100 font-semibold py-2.5 hover:bg-slate-200 transition">Reset</button>
+        </div>
+        <p class="text-xs text-slate-500">PDF export automatically hides provider‑only sections.</p>
+      </section>
+
+      <!-- Results -->
+      <section id="resultsCol" class="lg:col-span-3 grid gap-6">
+        <!-- quick comparison table -->
+        <section class="card" id="lineItemCard">
+          <h3 class="text-base font-semibold">Manual vs AI — Per Task & Monthly</h3>
+          <div class="overflow-x-auto mt-3">
+            <table class="min-w-full text-sm">
+              <thead class="text-left text-slate-600">
+                <tr>
+                  <th class="py-2 pr-3">Step</th>
+                  <th class="py-2 pr-3">Manual</th>
+                  <th class="py-2 pr-3">AI</th>
+                  <th class="py-2 pr-3">Notes</th>
+                </tr>
+              </thead>
+              <tbody id="lineTable" class="align-top"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Report (export area) -->
+        <div id="reportArea" class="grid gap-6">
+          <section class="card" id="summaryCards">
+            <div class="grid md:grid-cols-3 gap-4">
+              <div>
+                <h3 class="text-sm font-semibold text-slate-700">Manual — Year‑1</h3>
+                <p class="text-2xl md:text-3xl font-bold mt-1" id="manualYear">$0</p>
+                <p class="text-sm text-slate-500" id="manualMonth">$0 / month</p>
+              </div>
+              <div>
+                <h3 class="text-sm font-semibold text-slate-700">AI — Year‑1 (incl. setup + markup)</h3>
+                <p class="text-2xl md:text-3xl font-bold mt-1" id="aiYear">$0</p>
+                <p class="text-sm text-slate-500" id="aiMonth">$0 / month (amortized)</p>
+              </div>
+              <div>
+                <h3 class="text-sm font-semibold text-slate-700">Savings & ROI</h3>
+                <p class="mt-1"><span class="text-sm text-slate-600">Year‑1 savings:</span> <span class="text-xl font-bold" id="savingsYear">$0</span></p>
+                <p class="mt-1"><span class="text-sm text-slate-600">ROI on your fee:</span> <span class="font-semibold" id="roiPct">0%</span></p>
+                <p class="mt-1"><span class="text-sm text-slate-600">Break‑even (months):</span> <span class="font-semibold" id="breakeven">—</span></p>
+              </div>
+            </div>
+          </section>
+
+          <section class="card" id="explainCard">
+            <h3 class="text-base font-semibold">Executive Summary</h3>
+            <p class="text-sm text-slate-700 whitespace-pre-line" id="execSummary">Enter details and click Calculate.</p>
+          </section>
+
+          <section class="card" id="aiSpecCard">
+            <h3 class="text-base font-semibold">AI Task Specification (Client Summary)</h3>
+            <pre id="aiSpecOut" class="text-sm text-slate-700 whitespace-pre-wrap mt-2">No AI task specification provided yet.</pre>
+          </section>
+
+          <section class="card" id="chartsCard">
+            <h3 class="text-base font-semibold">Year‑1 Cost Comparison</h3>
+            <canvas id="barChart" class="mt-4"></canvas>
+            <p class="text-xs text-slate-500 mt-2">AI uses full setup in Year‑1; monthly view shows setup amortized.</p>
+            <canvas id="stackedChart" class="mt-4"></canvas>
+          </section>
+        </div>
+
+        <!-- Provider insights (private) -->
+        <section id="providerInsights" class="hidden bg-amber-50 card provider-only">
+          <div class="flex items-center justify-between">
+            <h3 class="font-semibold">Provider Insights (private)</h3>
+            <span class="badge bg-amber-200">Visible only in Provider Mode</span>
+          </div>
+          <ul id="insightsList" class="text-sm text-amber-900 list-disc pl-5 mt-2 space-y-1"></ul>
+          <div id="nofaHint" class="mt-3 text-sm text-amber-900 hidden">
+            <strong>Opportunity:</strong> Client requested a workflow outside your toolbox. Expand your offering — or partner with <em>NOFA AI</em> to deliver it.
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    // Heuristic presets
+    const industryBaseRates = { construction:60, healthcare:55, legal:120, retail:30, software:75 };
+    const regionFactors = { us_national:1.0, us_nyc:1.6, us_rural:0.8, eu:1.1, other:1.0 };
+    const marketFactors = { normal:1.0, layoffs:0.9, shortage:1.15 };
+
+    const $ = (id)=>document.getElementById(id);
+    const asMoney = (n)=> n.toLocaleString(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0});
+    let providerMode = false; let barChart, stackedChart;
+
+    function toggleProviderMode(){
+      providerMode = !providerMode;
+      $('toggleProvider').textContent = `Provider Mode: ${providerMode? 'ON':'OFF'}`;
+      const privates = document.querySelectorAll('.provider-only');
+      privates.forEach(el=> el.classList.toggle('hidden', !providerMode));
+    }
+
+    function getVals(){
+      const v = (id)=> parseFloat($(id)?.value)||0;
+      const industry = $('industry').value; const region = $('region').value; const market = $('market').value;
+      const blendedRate = (industryBaseRates[industry]||50) * (regionFactors[region]||1) * (marketFactors[market]||1);
+      return {
+        brandName: $('brandName').textContent.trim(),
+        clientCompany: $('clientCompany').value.trim(),
+        clientContact: $('clientContact').value.trim(),
+        taskName: $('taskName').value.trim()||'Task',
+        // volume
+        freq: v('freq'), months: Math.max(1, Math.floor(v('months')||12)),
+        // manual
+        manualHours: v('manualHours'), manualRate: v('manualRate')||blendedRate, manualExtras: v('manualExtras'), manualErrPct: v('manualErrPct'),
+        // ai
+        aiProcHours: v('aiProcHours'), aiReviewHours: v('aiReviewHours'), aiRate: v('aiRate')||blendedRate, aiMonthlyFee: v('aiMonthlyFee'),
+        // setup & ops
+        setupCost: v('setupCost'), amortMonths: Math.max(1, Math.floor(v('amortMonths')||12)),
+        integrationHours: v('integrationHours'), integrationRate: v('integrationRate'),
+        peHours: v('peHours'), peRate: v('peRate'),
+        dataMigration: v('dataMigration'), retraining: v('retraining'),
+        modelCostPerTask: v('modelCostPerTask'),
+        evalHours: v('evalHours'), evalRate: v('evalRate'),
+        qaSamplePct: v('qaSamplePct'), qaMinutes: v('qaMinutes'), qaRate: v('qaRate'),
+        // risk & notes
+        aiErrPct: v('aiErrPct'), errCost: v('errCost'), riskBufferPct: v('riskBufferPct'), confidencePct: v('confidencePct'), notes: $('notes').value.trim(),
+        // presets for context
+        industry, region, market, blendedRate,
+        // provider
+        capabilities: $('capabilities').value.toLowerCase(),
+        // spec
+        projectSpec: $('projectSpec').value.trim()
+      };
+    }
+
+    function compute(){
+      const x = getVals();
+
+      // --- Manual costs (incl. error share) ---
+      const perTaskManual = (x.manualHours * x.manualRate) + x.manualExtras + ((x.manualErrPct/100) * x.errCost);
+      const manualMonthly = x.freq * perTaskManual;
+      let manualYear = manualMonthly * x.months;
+
+      // --- AI operating costs ---
+      const perTaskAI = ((x.aiProcHours + x.aiReviewHours) * x.aiRate) + x.modelCostPerTask + ((x.qaSamplePct/100) * (x.qaMinutes/60) * x.qaRate) + ((x.aiErrPct/100) * x.errCost);
+      const aiMonthlyOps = (x.freq * perTaskAI) + x.aiMonthlyFee + (x.evalHours * x.evalRate);
+      const aiYearOps = aiMonthlyOps * x.months;
+
+      // --- One‑time + yearly extras ---
+      const setupTotal = x.setupCost + (x.integrationHours * x.integrationRate) + (x.peHours * x.peRate) + x.dataMigration;
+      let aiYearTotal = aiYearOps + setupTotal + x.retraining;
+
+      // --- Risk buffer ---
+      const riskMult = 1 + (x.riskBufferPct/100);
+      manualYear *= riskMult; aiYearTotal *= riskMult;
+
+      // --- Monthly explainer (amortized setup) ---
+      const aiMonthlyExplainer = aiMonthlyOps + (setupTotal / x.amortMonths) + (x.retraining / x.months);
+
+      // --- Savings / ROI / Breakeven ---
+      const savingsYear = manualYear - aiYearTotal;
+      const monthlyDeltaPreSetup = manualMonthly - aiMonthlyOps;
+      const breakeven = monthlyDeltaPreSetup > 0 ? Math.ceil(setupTotal / monthlyDeltaPreSetup) : '∞';
+      const roiPct = x.aiMonthlyFee>0 ? Math.round(((manualMonthly - aiMonthlyOps)/x.aiMonthlyFee)*100) : 0;
+
+      // Cards
+      $('manualYear').textContent = asMoney(manualYear);
+      $('manualMonth').textContent = asMoney(manualMonthly) + ' / month';
+      $('aiYear').textContent = asMoney(aiYearTotal);
+      $('aiMonth').textContent = asMoney(aiMonthlyExplainer) + ' / month (amortized)';
+      $('savingsYear').textContent = asMoney(savingsYear);
+      $('roiPct').textContent = roiPct + '%';
+      $('breakeven').textContent = String(breakeven);
+
+      // Exec summary (+ AI spec)
+      const exec = `For ${x.clientCompany||'your company'}, Year‑1 manual cost for “${x.taskName}” is ${asMoney(manualYear)} (incl. rework + ${x.riskBufferPct}% risk buffer). AI (setup ${asMoney(setupTotal)} + ops + your fee) totals ${asMoney(aiYearTotal)} — saving ${asMoney(savingsYear)} with an estimated break‑even in ${breakeven} month(s).`;
+      const spec = x.projectSpec ? `\n\nAI Task Spec:\n${x.projectSpec}` : '';
+      document.getElementById('execSummary').textContent = exec + spec + (x.notes? `\n\nNotes: ${x.notes}`:'');
+
+      // Comparison table
+      const tbody = document.getElementById('lineTable');
+      const rows = [
+        { step:'Per task total', manual: asMoney(perTaskManual), ai: asMoney(perTaskAI), note:'Manual = hours×rate + extras + rework; AI = labor + tokens + QA + rework' },
+        { step:'Monthly total (× frequency)', manual: asMoney(manualMonthly), ai: asMoney(aiMonthlyOps), note:'AI monthly includes your SaaS/markup + evaluation time' },
+      ];
+      tbody.innerHTML = rows.map(r=>`<tr class="border-t"><td class="py-2 pr-3 font-medium">${r.step}</td><td class="py-2 pr-3">${r.manual}</td><td class="py-2 pr-3">${r.ai}</td><td class="py-2 pr-3 text-slate-600">${r.note}</td></tr>`).join('');
+
+      // Charts
+      drawCharts({ manualYear, aiYearTotal, aiYearOps, setup: setupTotal });
+
+      // Provider insights
+      if(providerMode){
+        const caps = $('capabilities').value.toLowerCase().split(',').map(s=>s.trim());
+        const tokens = x.taskName.toLowerCase().split(/\W+/);
+        const covered = tokens.some(t=>caps.includes(t));
+        const tips = [];
+        if(!covered){ tips.push(`Toolbox gap: “${x.taskName}” not listed in your capabilities.`); document.getElementById('nofaHint').classList.remove('hidden'); } else { document.getElementById('nofaHint').classList.add('hidden'); }
+        tips.push(`Breakeven: ${breakeven} month(s). Improve by reducing review time, token usage, or QA sampling.`);
+        tips.push(`Preset wage/token benchmarks for ${x.industry}/${x.region} to speed client setup.`);
+        const list = document.getElementById('insightsList');
+        list.innerHTML = tips.map(t=>`<li>${t}</li>`).join('');
+      }
+
+      // Expose AI spec into the PDF report area
+      const specOut = document.getElementById('aiSpecOut');
+      if(specOut){ specOut.textContent = x.projectSpec || 'No AI task specification provided yet.'; }
+    }
+
+    function drawCharts(d){
+      const common = { responsive:true, plugins:{ legend:{display:false} }, scales:{ y:{ beginAtZero:true } } };
+      const ctx1 = document.getElementById('barChart');
+      const ctx2 = document.getElementById('stackedChart');
+      const data1 = { labels:['Manual Year‑1','AI Year‑1 (incl. setup)'], datasets:[{label:'Cost', data:[d.manualYear, d.aiYearTotal]}] };
+      const data2 = { labels:['AI Cost Split (Year‑1)'], datasets:[{label:'AI Ops', data:[d.aiYearOps]},{label:'Setup', data:[d.setup]}] };
+      if(window.barChart) window.barChart.destroy();
+      if(window.stackedChart) window.stackedChart.destroy();
+      window.barChart = new Chart(ctx1,{ type:'bar', data:data1, options:common });
+      window.stackedChart = new Chart(ctx2,{ type:'bar', data:data2, options:{...common, scales:{ x:{stacked:true}, y:{stacked:true, beginAtZero:true} }}});
+    }
+
+    async function exportClientPDF(){
+      const wasProvider = providerMode; providerMode = false;
+      document.querySelectorAll('.provider-only').forEach(el=> el.classList.add('hidden'));
+      const node = document.getElementById('reportArea');
+      const canvas = await html2canvas(node,{scale:2});
+      const img = canvas.toDataURL('image/png');
+      const pdf = new window.jspdf.jsPDF('p','pt','a4');
+      const pw = pdf.internal.pageSize.getWidth(); const ph = pdf.internal.pageSize.getHeight();
+      const ratio = Math.min(pw/canvas.width, ph/canvas.height);
+      const w = canvas.width * ratio; const h = canvas.height * ratio;
+      pdf.addImage(img,'PNG',(pw-w)/2,20,w,h);
+      pdf.save(`ROI_Report_${new Date().toISOString().slice(0,10)}.pdf`);
+      providerMode = wasProvider;
+      document.querySelectorAll('.provider-only').forEach(el=> el.classList.toggle('hidden', !providerMode));
+    }
+
+    function reset(){ location.reload(); }
+
+    // Events
+    document.getElementById('calcBtn').addEventListener('click', compute);
+    document.getElementById('resetBtn').addEventListener('click', reset);
+    document.getElementById('toggleProvider').addEventListener('click', toggleProviderMode);
+    document.getElementById('exportPDF').addEventListener('click', exportClientPDF);
+
+    // AI Spec helpers
+    const specEl = document.getElementById('projectSpec');
+    const countEl = document.getElementById('specCount');
+    function updateSpecCount(){ if(countEl) countEl.textContent = String(specEl.value.length); }
+    function insertTemplate(){
+      const tpl = `Objective:\n- What should this achieve? (e.g., generate draft bids 85% faster)\n\nInputs & Sources:\n- Files: (PDF plans, spreadsheets)\n- Systems/APIs: (Procore, QuickBooks, CRM)\n\nWorkflow Steps:\n1) ...\n2) ...\n3) ...\n\nAcceptance Criteria (DoD):\n- ...\n\nConstraints:\n- SLA, budget ceilings, compliance, data privacy\n\nEdge Cases:\n- ...\n\nOutputs:\n- Format(s), recipients, delivery channel, storage location`;
+      if(!specEl.value.trim()) specEl.value = tpl; else specEl.value += `\n\n${tpl}`; updateSpecCount();
+    }
+    function copyDesc(){ navigator.clipboard?.writeText(specEl.value||''); }
+    document.getElementById('specTemplate').addEventListener('click', insertTemplate);
+    document.getElementById('specCopy').addEventListener('click', copyDesc);
+    specEl.addEventListener('input', updateSpecCount);
+    updateSpecCount();
+
+    // Live recalc (debounced)
+    document.querySelectorAll('#inputsCard input, #inputsCard select, #inputsCard textarea').forEach(el=>{
+      el.addEventListener('input', ()=>{ clearTimeout(window._t); window._t = setTimeout(compute, 120); });
+    });
+
+    // First render
+    compute();
+  </script>
+</body>
+</html>
