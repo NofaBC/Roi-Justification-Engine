@@ -438,7 +438,7 @@
     }
 
     function getVals(){
-      const v = (id)=> parseFloat($(id)?.value)||0;
+      const v = (id)=> { const n = Number($(id)?.value); return Number.isFinite(n) ? Math.max(0,n) : 0; };
       const industry = $('industry').value; const region = $('region').value; const market = $('market').value;
       const blendedRate = (industryBaseRates[industry]||50) * (regionFactors[region]||1) * (marketFactors[market]||1);
       return {
@@ -449,9 +449,9 @@
         // volume
         freq: v('freq'), months: Math.max(1, Math.floor(v('months')||12)),
         // manual
-        manualHours: v('manualHours'), manualRate: v('manualRate')||blendedRate, manualExtras: v('manualExtras'), manualErrPct: v('manualErrPct'),
+        manualHours: v('manualHours'), manualRate: v('manualRate'), manualExtras: v('manualExtras'), manualErrPct: v('manualErrPct'),
         // ai
-        aiProcHours: v('aiProcHours'), aiReviewHours: v('aiReviewHours'), aiRate: v('aiRate')||blendedRate, aiMonthlyFee: v('aiMonthlyFee'),
+        aiProcHours: v('aiProcHours'), aiReviewHours: v('aiReviewHours'), aiRate: v('aiRate'), aiMonthlyFee: v('aiMonthlyFee'),
         // setup & ops
         setupCost: v('setupCost'), amortMonths: Math.max(1, Math.floor(v('amortMonths')||12)),
         integrationHours: v('integrationHours'), integrationRate: v('integrationRate'),
@@ -480,7 +480,8 @@
       let manualYear = manualMonthly * x.months;
 
       // --- AI operating costs ---
-      const perTaskAI = ((x.aiProcHours + x.aiReviewHours) * x.aiRate) + x.modelCostPerTask + ((x.qaSamplePct/100) * (x.qaMinutes/60) * x.qaRate) + ((x.aiErrPct/100) * x.errCost);
+      // AI processing is elapsed system time, not billable human labor. Charge human review separately.
+      const perTaskAI = (x.aiReviewHours * x.aiRate) + x.modelCostPerTask + ((x.qaSamplePct/100) * (x.qaMinutes/60) * x.qaRate) + ((x.aiErrPct/100) * x.errCost);
       const aiMonthlyOps = (x.freq * perTaskAI) + x.aiMonthlyFee + (x.evalHours * x.evalRate);
       const aiYearOps = aiMonthlyOps * x.months;
 
@@ -493,13 +494,15 @@
       manualYear *= riskMult; aiYearTotal *= riskMult;
 
       // --- Monthly explainer (amortized setup) ---
-      const aiMonthlyExplainer = aiMonthlyOps + (setupTotal / x.amortMonths) + (x.retraining / x.months);
+      const aiMonthlyExplainer = (aiMonthlyOps + (setupTotal / x.amortMonths) + (x.retraining / x.months)) * riskMult;
 
       // --- Savings / ROI / Breakeven ---
       const savingsYear = manualYear - aiYearTotal;
-      const monthlyDeltaPreSetup = manualMonthly - aiMonthlyOps;
-      const breakeven = monthlyDeltaPreSetup > 0 ? Math.ceil(setupTotal / monthlyDeltaPreSetup) : '∞';
-      const roiPct = x.aiMonthlyFee>0 ? Math.round(((manualMonthly - aiMonthlyOps)/x.aiMonthlyFee)*100) : 0;
+      // Payback uses risk-adjusted monthly operating difference (before setup), including retraining allocation.
+      const monthlyDeltaPreSetup = (manualMonthly - aiMonthlyOps - x.retraining/x.months) * riskMult;
+      const breakeven = monthlyDeltaPreSetup > 0 ? Math.ceil((setupTotal*riskMult) / monthlyDeltaPreSetup) : '∞';
+      // Cost-based Year-1 ROI: net first-year savings divided by the complete AI investment.
+      const roiPct = aiYearTotal > 0 ? Math.round((savingsYear/aiYearTotal)*100) : null;
 
       // Cards
       $('manualYear').textContent = asMoney(manualYear);
@@ -507,24 +510,24 @@
       $('aiYear').textContent = asMoney(aiYearTotal);
       $('aiMonth').textContent = asMoney(aiMonthlyExplainer) + ' / month (amortized)';
       $('savingsYear').textContent = asMoney(savingsYear);
-      $('roiPct').textContent = roiPct + '%';
+      $('roiPct').textContent = roiPct === null ? 'N/A' : roiPct + '%';
       $('breakeven').textContent = String(breakeven);
 
       // Exec summary (+ AI spec)
-      const exec = `For ${x.clientCompany||'your company'}, Year‑1 manual cost for “${x.taskName}” is ${asMoney(manualYear)} (incl. rework + ${x.riskBufferPct}% risk buffer). AI (setup ${asMoney(setupTotal)} + ops + your fee) totals ${asMoney(aiYearTotal)} — saving ${asMoney(savingsYear)} with an estimated break‑even in ${breakeven} month(s).`;
+      const exec = `For ${x.clientCompany||'your company'}, the ${x.months}-month manual cost for “${x.taskName}” is ${asMoney(manualYear)} (including rework and a ${x.riskBufferPct}% risk buffer). AI-assisted operations (including one-time setup, continuing costs, provider fees, and risk buffer) total ${asMoney(aiYearTotal)}. Projected net savings: ${asMoney(savingsYear)}. Estimated setup-cost payback: ${breakeven} month(s). These results are scenario estimates, not guaranteed cash savings; validate labor redeployment, assumptions, and feasibility.`;
       const spec = x.projectSpec ? `\n\nAI Task Spec:\n${x.projectSpec}` : '';
       document.getElementById('execSummary').textContent = exec + spec + (x.notes? `\n\nNotes: ${x.notes}`:'');
 
       // Comparison table
       const tbody = document.getElementById('lineTable');
       const rows = [
-        { step:'Per task total', manual: asMoney(perTaskManual), ai: asMoney(perTaskAI), note:'Manual = hours×rate + extras + rework; AI = labor + tokens + QA + rework' },
+        { step:'Per task total', manual: asMoney(perTaskManual), ai: asMoney(perTaskAI), note:'Manual = hours×rate + extras + rework; AI = review labor + tokens + QA + rework' },
         { step:'Monthly total (× frequency)', manual: asMoney(manualMonthly), ai: asMoney(aiMonthlyOps), note:'AI monthly includes your SaaS/markup + evaluation time' },
       ];
       tbody.innerHTML = rows.map(r=>`<tr class="border-t"><td class="py-2 pr-3 font-medium">${r.step}</td><td class="py-2 pr-3">${r.manual}</td><td class="py-2 pr-3">${r.ai}</td><td class="py-2 pr-3 text-slate-600">${r.note}</td></tr>`).join('');
 
       // Charts
-      drawCharts({ manualYear, aiYearTotal, aiYearOps, setup: setupTotal });
+      drawCharts({ manualYear, aiYearTotal, aiYearOps: aiYearOps*riskMult, setup: setupTotal*riskMult, retraining:x.retraining*riskMult });
 
       // Provider insights
       if(providerMode){
@@ -536,7 +539,7 @@
         tips.push(`Breakeven: ${breakeven} month(s). Improve by reducing review time, token usage, or QA sampling.`);
         tips.push(`Preset wage/token benchmarks for ${x.industry}/${x.region} to speed client setup.`);
         const list = document.getElementById('insightsList');
-        list.innerHTML = tips.map(t=>`<li>${t}</li>`).join('');
+        list.replaceChildren(...tips.map(t=>{const li=document.createElement('li');li.textContent=t;return li;}));
       }
 
       // Expose AI spec into the PDF report area
@@ -549,7 +552,7 @@
       const ctx1 = document.getElementById('barChart');
       const ctx2 = document.getElementById('stackedChart');
       const data1 = { labels:['Manual Year‑1','AI Year‑1 (incl. setup)'], datasets:[{label:'Cost', data:[d.manualYear, d.aiYearTotal]}] };
-      const data2 = { labels:['AI Cost Split (Year‑1)'], datasets:[{label:'AI Ops', data:[d.aiYearOps]},{label:'Setup', data:[d.setup]}] };
+      const data2 = { labels:['AI Cost Split (Year‑1)'], datasets:[{label:'AI Ops', data:[d.aiYearOps]},{label:'Setup', data:[d.setup]},{label:'Retraining', data:[d.retraining]}] };
       if(window.barChart) window.barChart.destroy();
       if(window.stackedChart) window.stackedChart.destroy();
       window.barChart = new Chart(ctx1,{ type:'bar', data:data1, options:common });
@@ -557,22 +560,44 @@
     }
 
     async function exportClientPDF(){
-      const wasProvider = providerMode; providerMode = false;
-      document.querySelectorAll('.provider-only').forEach(el=> el.classList.add('hidden'));
-      const node = document.getElementById('reportArea');
-      const canvas = await html2canvas(node,{scale:2});
-      const img = canvas.toDataURL('image/png');
-      const pdf = new window.jspdf.jsPDF('p','pt','a4');
-      const pw = pdf.internal.pageSize.getWidth(); const ph = pdf.internal.pageSize.getHeight();
-      const ratio = Math.min(pw/canvas.width, ph/canvas.height);
-      const w = canvas.width * ratio; const h = canvas.height * ratio;
-      pdf.addImage(img,'PNG',(pw-w)/2,20,w,h);
-      pdf.save(`ROI_Report_${new Date().toISOString().slice(0,10)}.pdf`);
-      providerMode = wasProvider;
-      document.querySelectorAll('.provider-only').forEach(el=> el.classList.toggle('hidden', !providerMode));
+      const btn = $('exportPDF');
+      const originalLabel = btn.textContent;
+      btn.disabled = true; btn.textContent='Preparing PDF…';
+      const hiddenProviderElements=[...document.querySelectorAll('.provider-only')];
+      const previousHidden=hiddenProviderElements.map(el=>el.classList.contains('hidden'));
+      hiddenProviderElements.forEach(el=>el.classList.add('hidden'));
+      try{
+        const node=$('reportArea');
+        const canvas=await html2canvas(node,{scale:2,backgroundColor:'#ffffff',useCORS:true});
+        const pdf=new window.jspdf.jsPDF('p','pt','a4');
+        const margin=28,pw=pdf.internal.pageSize.getWidth(),ph=pdf.internal.pageSize.getHeight();
+        const contentW=pw-2*margin,contentH=ph-2*margin;
+        const scaledHeight=canvas.height*contentW/canvas.width;
+        const pageCount=Math.max(1,Math.ceil(scaledHeight/contentH));
+        const sourceSliceHeight=contentH*canvas.width/contentW;
+        for(let i=0;i<pageCount;i++){
+          if(i>0)pdf.addPage();
+          const sourceY=Math.floor(i*sourceSliceHeight);
+          const sliceH=Math.min(canvas.height-sourceY,Math.ceil(sourceSliceHeight));
+          const pageCanvas=document.createElement('canvas');
+          pageCanvas.width=canvas.width;pageCanvas.height=sliceH;
+          pageCanvas.getContext('2d').drawImage(canvas,0,sourceY,canvas.width,sliceH,0,0,canvas.width,sliceH);
+          pdf.addImage(pageCanvas.toDataURL('image/jpeg',0.92),'JPEG',margin,margin,contentW,sliceH*contentW/canvas.width);
+          pdf.setFontSize(9);pdf.setTextColor(110);
+          pdf.text('ROI Justification Engine | Scenario estimate — validate assumptions',margin,ph-12);
+          pdf.text(`${i+1} / ${pageCount}`,pw-margin,ph-12,{align:'right'});
+        }
+        pdf.save(`ROI_Report_${new Date().toISOString().slice(0,10)}.pdf`);
+      }catch(err){
+        console.error('Unable to export client PDF',err);
+        alert('PDF export failed. Please try again or check the browser console.');
+      }finally{
+        hiddenProviderElements.forEach((el,i)=>el.classList.toggle('hidden',previousHidden[i]));
+        btn.disabled=false;btn.textContent=originalLabel;
+      }
     }
 
-    function reset(){ location.reload(); }
+        function reset(){ location.reload(); }
 
 
     // Quick-start UI: applies user-entered values to the existing calculation engine.
