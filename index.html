@@ -341,7 +341,7 @@
           <button id="calcBtn" class="rounded-xl bg-indigo-600 text-white font-semibold py-2.5 hover:bg-indigo-700 transition">Calculate</button>
           <button id="resetBtn" class="rounded-xl bg-slate-100 font-semibold py-2.5 hover:bg-slate-200 transition">Reset</button>
         </div>
-        <p class="text-xs text-slate-500">PDF export automatically hides provider‑only sections.</p>
+        <p class="text-xs text-slate-500">Client PDF hides provider-only sections. Provider Mode is a convenience view, not secure access control. Do not store confidential provider data until account authentication is implemented.</p>
       </section>
 
       <!-- Results -->
@@ -369,19 +369,19 @@
           <section class="card" id="summaryCards">
             <div class="grid md:grid-cols-3 gap-4">
               <div>
-                <h3 class="text-sm font-semibold text-slate-700">Manual — Year‑1</h3>
+                <h3 class="text-sm font-semibold text-slate-700">Manual — analysis period</h3>
                 <p class="text-2xl md:text-3xl font-bold mt-1" id="manualYear">$0</p>
                 <p class="text-sm text-slate-500" id="manualMonth">$0 / month</p>
               </div>
               <div>
-                <h3 class="text-sm font-semibold text-slate-700">AI — Year‑1 (incl. setup + markup)</h3>
+                <h3 class="text-sm font-semibold text-slate-700">AI — analysis period (incl. setup + fee)</h3>
                 <p class="text-2xl md:text-3xl font-bold mt-1" id="aiYear">$0</p>
                 <p class="text-sm text-slate-500" id="aiMonth">$0 / month (amortized)</p>
               </div>
               <div>
                 <h3 class="text-sm font-semibold text-slate-700">Savings & ROI</h3>
-                <p class="mt-1"><span class="text-sm text-slate-600">Year‑1 savings:</span> <span class="text-xl font-bold" id="savingsYear">$0</span></p>
-                <p class="mt-1"><span class="text-sm text-slate-600">Year-1 ROI on total AI cost:</span> <span class="font-semibold" id="roiPct">0%</span></p>
+                <p class="mt-1"><span class="text-sm text-slate-600">Period savings:</span> <span class="text-xl font-bold" id="savingsYear">$0</span></p>
+                <p class="mt-1"><span class="text-sm text-slate-600">Period ROI on total AI cost:</span> <span class="font-semibold" id="roiPct">0%</span></p>
                 <p class="mt-1"><span class="text-sm text-slate-600">Estimated setup payback (months):</span> <span class="font-semibold" id="breakeven">—</span></p>
               </div>
             </div>
@@ -400,7 +400,7 @@
           <section class="card" id="chartsCard">
             <h3 class="text-base font-semibold">Year‑1 Cost Comparison</h3>
             <canvas id="barChart" class="mt-4"></canvas>
-            <p class="text-xs text-slate-500 mt-2">AI includes full setup in Year‑1; monthly view amortizes setup. AI processing time is not human labor. Validate cash savings separately.</p>
+            <p class="text-xs text-slate-500 mt-2">AI includes full setup for the selected analysis period; monthly equivalent distributes setup across that period. AI processing time is not human labor. Validate cash savings separately.</p>
             <canvas id="stackedChart" class="mt-4"></canvas>
           </section>
         </div>
@@ -495,7 +495,7 @@
       manualYear *= riskMult; aiYearTotal *= riskMult;
 
       // --- Monthly explainer (amortized setup) ---
-      const aiMonthlyExplainer = (aiMonthlyOps + (setupTotal / x.amortMonths) + (x.retraining / x.months)) * riskMult;
+      const aiMonthlyExplainer = (aiMonthlyOps + (setupTotal / x.months) + (x.retraining / x.months)) * riskMult;
 
       // --- Savings / ROI / Breakeven ---
       const savingsYear = manualYear - aiYearTotal;
@@ -552,7 +552,7 @@
       const common = { responsive:true, plugins:{ legend:{display:false} }, scales:{ y:{ beginAtZero:true } } };
       const ctx1 = document.getElementById('barChart');
       const ctx2 = document.getElementById('stackedChart');
-      const data1 = { labels:['Manual Year‑1','AI Year‑1 (incl. setup)'], datasets:[{label:'Cost', data:[d.manualYear, d.aiYearTotal]}] };
+      const data1 = { labels:['Manual period','AI period (incl. setup)'], datasets:[{label:'Cost', data:[d.manualYear, d.aiYearTotal]}] };
       const data2 = { labels:['AI Cost Split (Year‑1)'], datasets:[{label:'AI Ops', data:[d.aiYearOps]},{label:'Setup', data:[d.setup]},{label:'Retraining', data:[d.retraining]}] };
       if(window.barChart) window.barChart.destroy();
       if(window.stackedChart) window.stackedChart.destroy();
