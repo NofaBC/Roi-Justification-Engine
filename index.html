@@ -74,7 +74,7 @@ details{border:1px solid #dae5f1;border-radius:13px;margin-top:15px;padding:13px
 <div class="stat-grid">
 <div class="stat"><div class="key">Manual process · period cost</div><div class="val" id="manualTotal">—</div></div>
 <div class="stat"><div class="key">SaaS-assisted · period cost</div><div class="val" id="aiTotal">—</div></div>
-<div class="stat"><div class="key">Economic savings · period</div><div class="val" id="economicSavings">—</div></div>
+<div class="stat"><div class="key">Economic net benefit · period</div><div class="val" id="economicSavings">—</div></div>
 <div class="stat"><div class="key">Economic ROI · total SaaS cost</div><div class="val" id="economicROI">—</div></div>
 </div>
 <div class="divider"></div>
@@ -142,7 +142,7 @@ function model(x){
 let lastText="";
 function calculate(){
  let x,d;
- try{x=values();d=model(x);}catch(err){alert(err.message);return;}
+ try{x=values();d=model(x);}catch(err){alert(err.message);return false;}
  const company=$("company").value.trim(),task=$("task").value.trim(),product=$("product").value.trim(),location=$("location").value.trim()||"Not provided";
  $("reportSubtitle").textContent=company+" · "+product+" · "+task+" · "+x.period+"-month analysis";
  $("manualTotal").textContent=cash(d.manualTotal);$("aiTotal").textContent=cash(d.aiTotal);
@@ -167,11 +167,12 @@ function calculate(){
  $("summary").replaceChildren(...lines.map(line=>{const p=document.createElement("p");p.textContent=line;return p;}));
  $("specSummary").textContent=$("spec").value.trim()?"AI Task Specification:\n"+$("spec").value.trim():"";
  lastText=["ROI Justification Engine™","Customer: "+company,"Contact: "+$("contact").value.trim(),"SaaS: "+product,"Task: "+task,...lines].join("\n");
+ return true;
 }
 $("calculate").addEventListener("click",calculate);
 $("reset").addEventListener("click",()=>location.reload());
-$("printReport").addEventListener("click",()=>{calculate();window.print();});
-$("copyReport").addEventListener("click",async()=>{calculate();try{await navigator.clipboard.writeText(lastText);$("copyReport").textContent="Copied";setTimeout(()=>$("copyReport").textContent="Copy report summary",1700);}catch(e){alert("Clipboard access blocked; please use Print / Save PDF.");}});
+$("printReport").addEventListener("click",()=>{if(calculate())window.print();});
+$("copyReport").addEventListener("click",async()=>{if(!calculate())return;try{await navigator.clipboard.writeText(lastText);$("copyReport").textContent="Copied";setTimeout(()=>$("copyReport").textContent="Copy report summary",1700);}catch(e){alert("Clipboard access blocked; please use Print / Save PDF.");}});
 $("costMode").addEventListener("change",()=>{const actual=$("costMode").value==="actual";for(const id of ["tax","benefits","overhead"])$(id).style.borderColor=actual?"#2563eb":"#cbd7e5";});
 inputIds.forEach(id=>$(id).addEventListener("change",calculate));
 calculate();
